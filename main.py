@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 from tesserocr import PyTessBaseAPI
@@ -242,7 +243,7 @@ def find_contour_areas(bin):
     return areas
 
 if __name__ == '__main__':
-    img_paths = ['/home/jkamlah/Documents/OCR-BW/EInzelanfragen/Moritz/20210719/']
+    img_paths = sys.argv[1:]
     img_list = []
     for idx, img_path in enumerate(reversed(img_paths)):
         if Path(img_path).is_dir():
