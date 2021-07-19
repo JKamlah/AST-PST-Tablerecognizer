@@ -1,0 +1,6 @@
+wheel
+tesserocr
+matplotlib
+numpy
+opencv-python
+pandas
