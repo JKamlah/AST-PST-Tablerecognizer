@@ -1,4 +1,5 @@
 import sys
+from string import digits
 from pathlib import Path
 
 from tesserocr import PyTessBaseAPI
@@ -8,7 +9,9 @@ from PIL import Image
 import pandas as pd
 
 
-def extract_tableinformation_from_images(img_paths, template=1, auto_template=True, lang="eng", debug=False):
+def extract_tableinformation_from_images(img_paths, lang="ASTPST_0.522000_951_6100", whitelist_num=False,
+                                         template=1, auto_template=True,
+                                         debug=False):
     with PyTessBaseAPI(lang=lang, psm=4) as api:
         for img_path in img_paths:
             print(f"Processing {img_path}")
@@ -57,14 +60,17 @@ def extract_tableinformation_from_images(img_paths, template=1, auto_template=Tr
 
                 # Deskew the image and bin image
                 M = cv.getRotationMatrix2D((bin.shape[1] // 2, bin.shape[0] // 2), deskewangle, 1.0)
-                rotated_bin = cv.warpAffine(bin, M, (bin.shape[1], bin.shape[0]), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
-                rotated_img = cv.warpAffine(img, M, (bin.shape[1], bin.shape[0]), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+                rotated_bin = cv.warpAffine(bin, M, (bin.shape[1], bin.shape[0]),
+                                            flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+                rotated_img = cv.warpAffine(img, M, (bin.shape[1], bin.shape[0]),
+                                            flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
                 break
             else:
                 print("The roi in the original image could not be found.")
                 return
 
-            # Again find the biggest area which ends above the middle of the image (you could also calculate it from the results above.. :)
+            # Again find the biggest area which ends above the middle of the image
+            # (you could also calculate it from the results above.. :)
             areas = find_contour_areas(rotated_bin)
             for idx, (area, contour) in enumerate(reversed(sorted(areas.items()))):
                 x, y, w, h = cv.boundingRect(contour)
@@ -88,11 +94,11 @@ def extract_tableinformation_from_images(img_paths, template=1, auto_template=Tr
             api.SetRectangle(x, int(y-h*0.5), int(w*0.20), int(h*0.4))
             BL_LK = api.GetUTF8Text().replace('- ','-').strip().split('\n')
             if len(BL_LK) == 2:
-                Bundesland = BL_LK[0]
-                Landkreis = BL_LK[1]
+                bundesland = BL_LK[0]
+                landkreis = BL_LK[1]
             else:
-                Bundesland = ""
-                Landkreis = ' '.join(BL_LK)
+                bundesland = ""
+                landkreis = ' '.join(BL_LK)
 
             # Autodetect template with the pixel density of the roi?
             # Measurements of testfiles: 331 -> 182, 332 -> 140, 333 -> 180, 334-> 143
@@ -117,7 +123,7 @@ def extract_tableinformation_from_images(img_paths, template=1, auto_template=Tr
 
             # Rows: To get the rows you could use the 1D-projection of the rotated_bin
             projection = []
-            th = 255*rotated_bin.shape[1]*0.9
+            th = 255*rotated_bin.shape[1]*0.875
             for yy in range(0, rotated_bin.shape[0]):
                 projection.append(th if sum(rotated_bin[yy,:]) > th else 0)
             projection_smooth = np.convolve(projection, 10, mode='same')
@@ -177,26 +183,37 @@ def extract_tableinformation_from_images(img_paths, template=1, auto_template=Tr
             # OCR: Use tesseract via tesserocr and the roi
             ocr_padding = 15
             rows.append(rotated_img.shape[0])
+            whitelist = api.GetVariableAsString('tessedit_char_whitelist')
             for ridx, row in enumerate(rows[1:]):
                 print(f"Zeile: {ridx+1}")
+                if whitelist_num:
+                    api.SetVariable('tessedit_char_whitelist', whitelist)
                 df_row = []
-                df_row.append(Bundesland)
-                df_row.append(Landkreis)
+                df_row.append(bundesland)
+                df_row.append(landkreis)
                 x_start = x
                 y_start = rows[ridx+1-1]
                 y_end = row
                 # Read the full row
-                api.SetRectangle(x_start - ocr_padding, y_start - ocr_padding, rotated_img.shape[0],
+                api.SetRectangle(x_start - ocr_padding, y_start - ocr_padding, x_start+w+ocr_padding,
                                  y_end - y_start + ocr_padding)
                 fullrow_text = api.GetUTF8Text().strip().replace('- ','-')
-                print(fullrow_text)
+                print('Fulltext: ',fullrow_text)
                 for cidx, col in enumerate(cols):
                     print(f"Spalte: {cidx+1}")
+                    if whitelist_num:
+                        # Use for col > 0 only digits as allowed chars
+                        if cidx > 0:
+                            api.SetVariable('tessedit_char_whitelist', digits)
+
                     if cidx > 0:
                         col = col-cols[cidx-1]
-                    api.SetRectangle(x_start-ocr_padding, y_start-ocr_padding, col+ocr_padding, y_end-y_start+ocr_padding)
+                    api.SetRectangle(x_start-ocr_padding, y_start-ocr_padding,
+                                     col+ocr_padding, y_end-y_start+ocr_padding)
                     if debug:
-                        crop = rotated_img_pil.crop([x_start-ocr_padding, y_start-ocr_padding, col+ocr_padding+(x_start-ocr_padding), y_end-y_start+ocr_padding+(y_start-ocr_padding)])
+                        crop = rotated_img_pil.crop([x_start-ocr_padding, y_start-ocr_padding,
+                                                     col+ocr_padding+(x_start-ocr_padding),
+                                                     y_end-y_start+ocr_padding+(y_start-ocr_padding)])
                         crop.save(f"./{ridx}_{cidx}.png")
                     ocrResult = api.GetUTF8Text().replace('\n', ' ').replace('- ','-').strip()
                     if ocrResult == "":
@@ -207,7 +224,12 @@ def extract_tableinformation_from_images(img_paths, template=1, auto_template=Tr
                         ocrResult = ocrResult if ocrResult.isdigit() else ''
                         # Reset to psm mode singe column
                         api.SetPageSegMode(4)
-                    if len(cols)-1 > cidx > 0 and ocrResult != "" and (not ocrResult.isdigit() or ocrResult not in fullrow_text):
+                    # Find suspicious ocr results when checking non-empty ocr-results with the result of the
+                    # row fulltext (0 not included cause it often gets not recognized by in the row fulltext)
+                    if len(cols)-1 > cidx > 0 and ocrResult not in ['', '0'] and (not ocrResult.isdigit() or
+                                                                       ocrResult not in fullrow_text):
+                        ocrResult += " ?!?"
+                    elif len(cols)-1==cidx and ocrResult != "" and not ocrResult.isdigit():
                         ocrResult += " ?!?"
                     print(ocrResult)
                     x_start += col
@@ -243,9 +265,8 @@ def find_contour_areas(bin):
     return areas
 
 if __name__ == '__main__':
-    img_paths = sys.argv[1:]
     img_list = []
-    for idx, img_path in enumerate(reversed(img_paths)):
+    for idx, img_path in enumerate(reversed(sys.argv[1:])):
         if Path(img_path).is_dir():
             img_list.extend([str(img_path.resolve()) for img_path in Path(img_path).rglob('*.png')])
         else:
