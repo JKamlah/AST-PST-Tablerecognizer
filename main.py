@@ -14,7 +14,20 @@ logging.basicConfig(filename='error.log',format='%(asctime)s %(message)s', level
 
 def extract_tableinformation_from_images(img_paths, lang="ASTPST_0.522000_951_6100", whitelist_num=False,
                                          template=1, auto_template=True,
+                                         suspicious_threshold=10,
+                                         pixel_density_template_threshold=179,
+                                         pixel_density_row_threshold=0.95,
+                                         ocr_padding=15,
                                          debug=False, visual_debug=False):
+    """
+    This program process AST-PST files, it:
+    - deskews via object clustering
+    - analyzes the layout via 1d-projection profile and pixel density and templating
+    - extract tableinformation via OCR with tesseract
+    - stores the data as table in a csv-file
+    For this special case magic number, thresholds and the templating are hardcoded.
+    :return:
+    """
     with PyTessBaseAPI(lang=lang, psm=4) as api:
         for img_path in img_paths:
             print(f"Processing {img_path}")
@@ -109,7 +122,7 @@ def extract_tableinformation_from_images(img_paths, lang="ASTPST_0.522000_951_61
                 if debug:
                     print('Pixel density: ',np.sum(rotated_roi)/area)
                 if auto_template:
-                    if np.sum(rotated_roi)/area > 179:
+                    if np.sum(rotated_roi)/area > pixel_density_template_threshold:
                         template = 1
                     else:
                         template = 2
@@ -128,7 +141,7 @@ def extract_tableinformation_from_images(img_paths, lang="ASTPST_0.522000_951_61
 
                 # Rows: To get the rows you could use the 1D-projection of the rotated_bin
                 projection = []
-                th = 255*(rotated_bin.shape[1]-x-cols[1])*0.95
+                th = 255*(rotated_bin.shape[1]-x-cols[1])*pixel_density_row_threshold
                 kernel = np.ones((2, 13), np.uint8)
                 rotated_bin_cols = cv.erode(rotated_bin, kernel, iterations=2)
                 cv.imwrite("./rotated_cols.png", rotated_bin_cols)
@@ -191,7 +204,7 @@ def extract_tableinformation_from_images(img_paths, lang="ASTPST_0.522000_951_61
                 df = pd.DataFrame(columns=tmpl_header)
 
                 # OCR: Use tesseract via tesserocr and the roi
-                ocr_padding = 15
+
                 suspicious_counter = 0
                 rows.append(rotated_img.shape[0]-10-ocr_padding)
                 whitelist = api.GetVariableAsString('tessedit_char_whitelist')
@@ -255,7 +268,7 @@ def extract_tableinformation_from_images(img_paths, lang="ASTPST_0.522000_951_61
                 # Et voilá: Deskew images, ocr results and extracted the information
                 df.to_csv(Path(img_path).with_suffix('.csv'), index=False)
                 df = None
-                if suspicious_counter > 10:
+                if suspicious_counter > suspicious_threshold:
                     logging.warning(f'More than 10 suspicious occurrences in {img_path}')
                 # Plot the results (for debugging)
                 if visual_debug:
