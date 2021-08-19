@@ -28,6 +28,11 @@ cd AST-PST-Tablerecognizer
 #### Start the process
 
     $ python3 main.py path/to/image[s]
+    
+    
+#### Examples for template 1 & 2
+
+    $ python3 main.py ./testfiles/
 
 Copyright and License
 --------
