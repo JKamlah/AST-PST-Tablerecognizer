@@ -40,11 +40,11 @@ Copyright and License
 
 Copyright (c) 2020 Universitätsbibliothek Mannheim
 
-Projectmanagement
+Project management
  * Moritz Lubcyk
  * Moritz Hennicke
 
-Software
+Software development
  * [Jan Kamlah](https://github.com/jkamlah)
 
 **Linefinder** is an OSS. You may use it under the terms of the Apache 2.0 License.
