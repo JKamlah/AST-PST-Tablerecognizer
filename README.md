@@ -7,6 +7,7 @@ AST-PST-Tablerecognizer
 
 #### 1. Requirements
 - Python >= 3.6
+- tesseract
 - tesserocr
 - opencv
 - pandas
@@ -39,8 +40,12 @@ Copyright and License
 
 Copyright (c) 2020 Universitätsbibliothek Mannheim
 
-Author:
+Projectmanagement
+ * Moritz Lubcyk
+ * Moritz Hennicke
+
+Software
  * [Jan Kamlah](https://github.com/jkamlah)
 
-**GTReval** is an OSS. You may use it under the terms of the Apache 2.0 License.
+**Linefinder** is an OSS. You may use it under the terms of the Apache 2.0 License.
 See [LICENSE](./LICENSE) for details.
